@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <title>ShareDesk · Admin login</title>
     <style>
         /* Remove default margins and padding */
@@ -24,6 +24,7 @@
             height: 100%;
             border: none;
         }
+    html,body{height:100vh;height:100dvh;height:var(--sd-viewport-height,100dvh)}iframe{display:block}
     </style>
 </head>
 <body>
@@ -36,5 +37,12 @@
         sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation">
     </iframe>
 
+<script>
+(function(){
+  let scheduled=false;
+  function resize(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;const v=window.visualViewport;const h=v&&v.scale===1?v.height:innerHeight;document.documentElement.style.setProperty('--sd-viewport-height',Math.max(1,Math.floor(h))+'px');});}
+  addEventListener('resize',resize);addEventListener('orientationchange',resize);window.visualViewport?.addEventListener('resize',resize);window.visualViewport?.addEventListener('scroll',resize);resize();
+})();
+</script>
 </body>
 </html>
