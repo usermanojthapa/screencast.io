@@ -4,7 +4,19 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <title>ShareDesk · Admin login</title>
 <style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f2f4f9;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif}iframe{display:block;position:fixed;top:var(--sd-viewport-top,0px);left:0;width:100%;height:var(--sd-viewport-height,100dvh);border:0}iframe:fullscreen{inset:0;width:100vw;height:100dvh;background:#000}</style>
-</head><body>
+<script>
+window.sdStartMicrophone=async function(onPacket,onEnded){
+  if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Microphone requires a secure HTTPS connection.');
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
+  let context,node,input,gain,closed=false,moduleUrl;
+  const close=()=>{if(closed)return;closed=true;stream.getTracks().forEach(t=>t.stop());try{input?.disconnect();node?.disconnect();gain?.disconnect();}catch(_){}context?.close().catch(()=>{});if(moduleUrl)URL.revokeObjectURL(moduleUrl);};
+  try{context=new (window.AudioContext||window.webkitAudioContext)();await context.resume();if(!context.audioWorklet)throw Error('This browser does not support live voice processing.');
+    const processor='class ShareDeskPcm extends AudioWorkletProcessor{constructor(){super();this.phase=0;this.sum=0;this.count=0;this.samples=[];}process(inputs){const channel=inputs[0]?.[0];if(channel)for(let i=0;i<channel.length;i++){this.sum+=channel[i];this.count++;this.phase+=16000;if(this.phase>=sampleRate){this.phase-=sampleRate;this.samples.push(Math.max(-1,Math.min(1,this.sum/this.count)));this.sum=0;this.count=0;if(this.samples.length===320){const packet=new ArrayBuffer(641),view=new DataView(packet);view.setUint8(0,4);for(let j=0;j<320;j++)view.setInt16(1+j*2,Math.round(this.samples[j]*(this.samples[j]<0?32768:32767)),true);this.port.postMessage(packet,[packet]);this.samples=[];}}}return true;}}registerProcessor("sharedesk-pcm",ShareDeskPcm);';
+    moduleUrl=URL.createObjectURL(new Blob([processor],{type:'text/javascript'}));await context.audioWorklet.addModule(moduleUrl);URL.revokeObjectURL(moduleUrl);moduleUrl=null;
+    node=new AudioWorkletNode(context,'sharedesk-pcm',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});input=context.createMediaStreamSource(stream);gain=context.createGain();gain.gain.value=0;input.connect(node);node.connect(gain).connect(context.destination);node.port.onmessage=e=>{if(!closed&&e.data instanceof ArrayBuffer)onPacket(e.data);};stream.getAudioTracks().forEach(t=>t.addEventListener('ended',()=>{if(!closed){close();onEnded?.();}}));return {close};
+  }catch(error){close();throw error;}
+};
+</script></head><body>
 <iframe title="ShareDesk admin login" allow="autoplay; fullscreen; clipboard-read; clipboard-write" allowfullscreen sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation"></iframe>
 <script>
 (()=>{
@@ -14,6 +26,30 @@
   for(const key of ['code','p','invite','peerId','token','listen','relay','approve'])if(query.has(key))url.searchParams.set(key,query.get(key));
   if(query.get('page')==='viewer'&&/^\d{6}$/.test(query.get('code')||''))url.searchParams.set('page','viewer');
   url.searchParams.set('wrapperOrigin',location.origin);url.searchParams.set('wrapperNonce',nonce);frame.src=url.href;
+
+  let mediaOwner=null,microphone=null,mediaGeneration=0,aliveAt=0;
+  const badge=document.createElement('button');badge.hidden=true;badge.textContent='Microphone on · Mute';badge.style.cssText='position:fixed;z-index:3000;left:12px;top:12px;background:#c62828;color:#fff;border:0;border-radius:999px;padding:10px 16px;font:600 13px system-ui;box-shadow:0 4px 20px #0004';document.body.append(badge);
+  function mediaReply(owner,value,transfer=[]){owner?.target.postMessage({nonce,...value},owner.origin,transfer);}
+  function stopMicrophone(error=''){++mediaGeneration;const owner=mediaOwner;mediaOwner=null;microphone?.close();microphone=null;badge.hidden=true;if(owner)mediaReply(owner,{type:'sharedesk-microphone-state',active:false,error});}
+  badge.onclick=()=>stopMicrophone();
+  function askConsent(title,text,allow,done){const cover=document.createElement('div');cover.style.cssText='position:fixed;inset:0;z-index:4000;display:flex;align-items:center;justify-content:center;padding:20px;background:#0007;overflow-y:auto';const card=document.createElement('section');card.setAttribute('role','dialog');card.setAttribute('aria-modal','true');card.style.cssText='width:100%;max-width:400px;margin:auto;border-radius:28px;background:#f5f5f7;color:#1d1d1f;padding:24px;font:15px/1.5 -apple-system,BlinkMacSystemFont,system-ui;box-shadow:0 20px 80px #0005';const heading=document.createElement('h2');heading.textContent=title;heading.style.cssText='font-size:22px;margin:0 0 12px';const info=document.createElement('p');info.textContent=text;const buttons=document.createElement('div');buttons.style.cssText='display:flex;justify-content:flex-end;gap:12px;margin-top:22px';const cancel=document.createElement('button'),yes=document.createElement('button');cancel.textContent='Cancel';yes.textContent=allow;for(const b of [cancel,yes])b.style.cssText='border:0;border-radius:999px;padding:12px 18px;font:600 14px system-ui;cursor:pointer';yes.style.background='#007aff';yes.style.color='#fff';const finish=value=>{cover.remove();done(value);};cancel.onclick=()=>finish(false);yes.onclick=()=>finish(true);card.append(heading,info,buttons);buttons.append(cancel,yes);cover.append(card);document.body.append(cover);cancel.focus();cover.onkeydown=e=>{if(e.key==='Escape')finish(false);};}
+  addEventListener('message',e=>{
+    if(!new RegExp('^https://[a-zA-Z0-9-]+-script[.]googleusercontent[.]com$').test(e.origin)||e.data?.nonce!==nonce)return;
+    const owner={target:e.source,origin:e.origin},m=e.data;
+    if(m.type==='sharedesk-media-alive'){if(mediaOwner?.target===e.source)aliveAt=Date.now();return;}
+    if(m.type==='sharedesk-media-stop'){if(mediaOwner?.target===e.source)stopMicrophone();return;}
+    if(m.type==='sharedesk-microphone-request'){
+      if(mediaOwner)return mediaReply(owner,{type:'sharedesk-microphone-state',active:false,error:'Another voice conversation is active. Mute it first.'});
+      mediaOwner=owner;const generation=++mediaGeneration;aliveAt=Date.now();
+      askConsent('Join voice conversation?','Your microphone will be heard live by the host and participants in this connection until you mute it. Audio is not recorded.','Join voice chat',async allowed=>{
+        if(generation!==mediaGeneration)return;if(!allowed){stopMicrophone();return;}
+        try{const capture=await window.sdStartMicrophone(packet=>{if(generation===mediaGeneration&&mediaOwner)mediaReply(mediaOwner,{type:'sharedesk-voice-packet',packet},[packet]);},()=>stopMicrophone('Microphone access ended.'));if(generation!==mediaGeneration){capture.close();return;}microphone=capture;aliveAt=Date.now();badge.hidden=false;mediaReply(owner,{type:'sharedesk-microphone-state',active:true});}catch(error){if(generation===mediaGeneration)stopMicrophone(error.message||'Microphone unavailable.');}
+      });
+    }else if(m.type==='sharedesk-location-request')askConsent('Share current location?','One location and its accuracy will be saved in the project Google Sheet and visible to the authenticated administrator. Use the location icon again to remove it.','Share location',allowed=>{if(!allowed)return;if(!navigator.geolocation)return mediaReply(owner,{type:'sharedesk-location-result',error:'Location is unavailable in this browser.'});navigator.geolocation.getCurrentPosition(p=>mediaReply(owner,{type:'sharedesk-location-result',location:{lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy}}),error=>mediaReply(owner,{type:'sharedesk-location-result',error:error.message}),{enableHighAccuracy:false,timeout:15000,maximumAge:0});});
+  });
+  setInterval(()=>{if(mediaOwner&&Date.now()-aliveAt>16000)stopMicrophone('Voice conversation disconnected.');},4000);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopMicrophone();});addEventListener('pagehide',()=>stopMicrophone());
+
   let scheduled=false,reply=null;
   function resize(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;const v=window.visualViewport;if(v&&Math.abs(v.scale-1)>.01)return;const h=v?v.height:innerHeight;document.documentElement.style.setProperty('--sd-viewport-height',Math.max(1,Math.floor(h))+'px');document.documentElement.style.setProperty('--sd-viewport-top',Math.max(0,v?v.offsetTop:0)+'px');});}
   function state(error){if(!reply)return;reply.target.postMessage({type:'sharedesk-fullscreen-state',nonce,active:document.fullscreenElement===frame,error:error||''},reply.origin);}
