@@ -1,48 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
-    <title>ShareDesk · Admin login</title>
-    <style>
-        /* Remove default margins and padding */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        /* Make the body take up the full screen */
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-        }
-        /* Style the iframe to fill the entire browser window */
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-    html,body{height:100vh;height:100dvh;height:var(--sd-viewport-height,100dvh)}iframe{display:block}
-    </style>
-</head>
-<body>
-
-    <iframe 
-        src="https://script.google.com/macros/s/AKfycbzCe6p0m3u0KmjJpdzxPgaBECVNfS14gffuC9I6c6w574rHYonUWEg1JM6i4Qkt1SlU/exec?page=login" 
-        title="ShareDesk admin login"
-        allow="autoplay; fullscreen; clipboard-read; clipboard-write"
-        allowfullscreen
-        sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation">
-    </iframe>
-
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<title>ShareDesk · Admin login</title>
+<style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100vh;height:100dvh;height:var(--sd-viewport-height,100dvh);overflow:hidden;background:#f2f4f9;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif}iframe{display:block;width:100%;height:100%;border:0}iframe:fullscreen{width:100vw;height:100dvh;background:#000}</style>
+</head><body>
+<iframe title="ShareDesk admin login" allow="autoplay; fullscreen; clipboard-read; clipboard-write" allowfullscreen sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation"></iframe>
 <script>
-(function(){
-  let scheduled=false;
-  function resize(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;const v=window.visualViewport;const h=v&&v.scale===1?v.height:innerHeight;document.documentElement.style.setProperty('--sd-viewport-height',Math.max(1,Math.floor(h))+'px');});}
-  addEventListener('resize',resize);addEventListener('orientationchange',resize);window.visualViewport?.addEventListener('resize',resize);window.visualViewport?.addEventListener('scroll',resize);resize();
+(()=>{
+  const frame=document.querySelector('iframe'),nonce=crypto.randomUUID().replace(/-/g,''),query=new URLSearchParams(location.search);
+  const url=new URL('https://script.google.com/macros/s/AKfycbzCe6p0m3u0KmjJpdzxPgaBECVNfS14gffuC9I6c6w574rHYonUWEg1JM6i4Qkt1SlU/exec');
+  url.searchParams.set('page','login');
+  for(const key of ['code','p','invite','peerId','token','listen','relay','approve'])if(query.has(key))url.searchParams.set(key,query.get(key));
+  if(query.get('page')==='viewer'&&/^\d{6}$/.test(query.get('code')||''))url.searchParams.set('page','viewer');
+  url.searchParams.set('wrapperOrigin',location.origin);url.searchParams.set('wrapperNonce',nonce);frame.src=url.href;
+  let scheduled=false,reply=null;
+  function resize(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;const v=visualViewport,h=v&&v.scale===1?v.height:innerHeight;document.documentElement.style.setProperty('--sd-viewport-height',Math.max(1,Math.floor(h))+'px');});}
+  function state(error){if(!reply)return;reply.target.postMessage({type:'sharedesk-fullscreen-state',nonce,active:document.fullscreenElement===frame,error:error||''},reply.origin);}
+  addEventListener('message',async e=>{
+    if(!/^https:\/\/[a-zA-Z0-9-]+-script\.googleusercontent\.com$/.test(e.origin)||e.data?.nonce!==nonce||e.data.type!=='sharedesk-fullscreen')return;
+    reply={target:e.source,origin:e.origin};
+    try{if(e.data.enter){if(document.fullscreenElement!==frame)await frame.requestFullscreen();}else if(document.fullscreenElement)await document.exitFullscreen();state();}catch(error){state(error.message||'Fullscreen unavailable');}
+  });
+  document.addEventListener('fullscreenchange',()=>state());addEventListener('resize',resize);addEventListener('orientationchange',resize);visualViewport?.addEventListener('resize',resize);visualViewport?.addEventListener('scroll',resize);resize();
 })();
-</script>
-</body>
-</html>
+</script></body></html>
