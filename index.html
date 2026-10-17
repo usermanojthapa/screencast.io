@@ -22,12 +22,14 @@ window.sdStartMicrophone=async function(onPacket,onEnded){
 (()=>{
   const frame=document.querySelector('iframe'),nonce=crypto.randomUUID().replace(/-/g,''),query=new URLSearchParams(location.search);
   const url=new URL('https://script.google.com/macros/s/AKfycbzCe6p0m3u0KmjJpdzxPgaBECVNfS14gffuC9I6c6w574rHYonUWEg1JM6i4Qkt1SlU/exec');
-  url.searchParams.set('page','login');
+  url.searchParams.set('page','login');if(query.get('page')==='client')url.searchParams.set('page','client');
   if(query.get('dashboard')==='1'){url.href='https://script.google.com/macros/s/AKfycbxMoBvhUlMnGSTrKZPBLJpXqfwckxnrAR6b-WkYds2WjuQXFvXdJHKzYU6k1lvzls3T/exec';url.searchParams.set('page','admin');url.searchParams.set('dashboard','1');}
-  for(const key of ['code','p','invite','peerId','token','listen','relay','approve'])if(query.has(key))url.searchParams.set(key,query.get(key));
+  for(const key of ['code','p','invite','peerId','token','listen','relay','approve','admin'])if(query.has(key))url.searchParams.set(key,query.get(key));
   if(query.get('page')==='viewer'&&/^\d{6}$/.test(query.get('code')||''))url.searchParams.set('page','viewer');
   url.searchParams.set('wrapperOrigin',location.origin);url.searchParams.set('wrapperNonce',nonce);frame.src=url.href;
 
+
+  addEventListener('message',e=>{if(!/^https:\/\/[a-zA-Z0-9-]+-script\.googleusercontent\.com$/.test(e.origin)||e.data?.nonce!==nonce||e.data.type!=='sharedesk-route')return;const m=e.data,route=new URL(location.href);route.search='';route.hash='';if(m.view==='viewer'){if(!/^\d{6}$/.test(m.code||''))return;route.searchParams.set('page','viewer');route.searchParams.set('code',m.code);if(/^[A-Za-z0-9_-]{20,160}$/.test(m.invite||''))route.searchParams.set('p',m.invite);if(m.owner===true&&route.pathname==='/screencast.io/'){route.searchParams.set('dashboard','1');route.searchParams.set('admin','1');}}else if(m.view==='client')route.searchParams.set('page','client');else return;history.replaceState({sharedesk:true},'',route.href);});
   let mediaOwner=null,microphone=null,mediaGeneration=0,aliveAt=0;
   const badge=document.createElement('button');badge.hidden=true;badge.textContent='Microphone on · Mute';badge.style.cssText='position:fixed;z-index:3000;left:12px;top:12px;background:#c62828;color:#fff;border:0;border-radius:999px;padding:10px 16px;font:600 13px system-ui;box-shadow:0 4px 20px #0004';document.body.append(badge);
   function mediaReply(owner,value,transfer=[]){owner?.target.postMessage({nonce,...value},owner.origin,transfer);}
