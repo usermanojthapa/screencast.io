@@ -23,6 +23,7 @@ window.sdStartMicrophone=async function(onPacket,onEnded){
   const frame=document.querySelector('iframe'),nonce=crypto.randomUUID().replace(/-/g,''),query=new URLSearchParams(location.search);
   const url=new URL('https://script.google.com/macros/s/AKfycbzCe6p0m3u0KmjJpdzxPgaBECVNfS14gffuC9I6c6w574rHYonUWEg1JM6i4Qkt1SlU/exec');
   url.searchParams.set('page','login');
+  if(query.get('dashboard')==='1'){url.href='https://script.google.com/macros/s/AKfycbxMoBvhUlMnGSTrKZPBLJpXqfwckxnrAR6b-WkYds2WjuQXFvXdJHKzYU6k1lvzls3T/exec';url.searchParams.set('page','admin');url.searchParams.set('dashboard','1');}
   for(const key of ['code','p','invite','peerId','token','listen','relay','approve'])if(query.has(key))url.searchParams.set(key,query.get(key));
   if(query.get('page')==='viewer'&&/^\d{6}$/.test(query.get('code')||''))url.searchParams.set('page','viewer');
   url.searchParams.set('wrapperOrigin',location.origin);url.searchParams.set('wrapperNonce',nonce);frame.src=url.href;
