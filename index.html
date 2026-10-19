@@ -3,7 +3,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <title>ShareDesk · Admin login</title>
-<style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f2f4f9;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif}iframe{display:block;position:fixed;top:var(--sd-viewport-top,0px);left:0;width:100%;height:var(--sd-viewport-height,100dvh);border:0}iframe:fullscreen{inset:0;width:100vw;height:100dvh;background:#000}</style>
+<style>[hidden]{display:none!important}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f2f4f9;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif}iframe{display:block;position:fixed;top:var(--sd-viewport-top,0px);left:0;width:100%;height:var(--sd-viewport-height,100dvh);border:0}iframe:fullscreen{inset:0;width:100vw;height:100dvh;background:#000}</style>
 <script>
 window.sdStartMicrophone=async function(onPacket,onEnded){
   if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Microphone requires a secure HTTPS connection.');
@@ -20,17 +20,20 @@ window.sdStartMicrophone=async function(onPacket,onEnded){
 <script>
 (()=>{
   const frame=document.querySelector('iframe'),nonce=crypto.randomUUID().replace(/-/g,''),query=new URLSearchParams(location.search);
+  const requestedCode=(query.get('code')||query.get('pin')||location.pathname.match(/\/(\d{6})\/?$/)?.[1]||'').trim();
+  const sharedCode=/^\d{6}$/.test(requestedCode)?requestedCode:'';
+  if(sharedCode){query.set('code',sharedCode);const route=new URL(location.href);route.searchParams.set('page','viewer');route.searchParams.set('code',sharedCode);route.searchParams.delete('pin');history.replaceState({sharedesk:true},'',route.href);}
   const url=new URL('https://script.google.com/macros/s/AKfycbzCe6p0m3u0KmjJpdzxPgaBECVNfS14gffuC9I6c6w574rHYonUWEg1JM6i4Qkt1SlU/exec');
   url.searchParams.set('page','login');if(query.get('page')==='client')url.searchParams.set('page','client');
   if(query.get('dashboard')==='1'){url.href='https://script.google.com/macros/s/AKfycbxMoBvhUlMnGSTrKZPBLJpXqfwckxnrAR6b-WkYds2WjuQXFvXdJHKzYU6k1lvzls3T/exec';url.searchParams.set('page','admin');url.searchParams.set('dashboard','1');}
   for(const key of ['code','p','invite','peerId','token','listen','relay','approve','admin'])if(query.has(key))url.searchParams.set(key,query.get(key));
-  if(query.get('page')==='viewer'&&/^\d{6}$/.test(query.get('code')||''))url.searchParams.set('page','viewer');
+  if(sharedCode){url.searchParams.set('page','viewer');url.searchParams.set('code',sharedCode);if(query.get('dashboard')==='1')url.searchParams.set('admin','1');}
   url.searchParams.set('wrapperOrigin',location.origin);url.searchParams.set('wrapperNonce',nonce);frame.src=url.href;
 
 
   addEventListener('message',e=>{if(!/^https:\/\/[a-zA-Z0-9-]+-script\.googleusercontent\.com$/.test(e.origin)||e.data?.nonce!==nonce||e.data.type!=='sharedesk-route')return;const m=e.data,route=new URL(location.href);route.search='';route.hash='';if(m.view==='viewer'){if(!/^\d{6}$/.test(m.code||''))return;route.searchParams.set('page','viewer');route.searchParams.set('code',m.code);if(/^[A-Za-z0-9_-]{20,160}$/.test(m.invite||''))route.searchParams.set('p',m.invite);if(m.owner===true&&route.pathname==='/screencast.io/'){route.searchParams.set('dashboard','1');route.searchParams.set('admin','1');}}else if(m.view==='client')route.searchParams.set('page','client');else return;history.replaceState({sharedesk:true},'',route.href);});
   let mediaOwner=null,microphone=null,mediaGeneration=0,aliveAt=0;
-  const badge=document.createElement('button');badge.hidden=true;badge.textContent='Microphone on · Mute';badge.style.cssText='position:fixed;z-index:3000;left:12px;top:12px;background:#c62828;color:#fff;border:0;border-radius:999px;padding:10px 16px;font:600 13px system-ui;box-shadow:0 4px 20px #0004';document.body.append(badge);
+  const badge=document.createElement('button');badge.hidden=true;badge.type='button';badge.setAttribute('aria-label','Turn off microphone');badge.title='Turn off microphone';badge.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>';badge.style.cssText='position:fixed;z-index:3000;left:12px;top:12px;width:40px;height:40px;display:grid;place-items:center;background:#c62828;color:#fff;border:0;border-radius:50%;padding:0;box-shadow:0 4px 20px #0004;cursor:pointer';document.body.append(badge);
   function mediaReply(owner,value,transfer=[]){owner?.target.postMessage({nonce,...value},owner.origin,transfer);}
   function stopMicrophone(error=''){++mediaGeneration;const owner=mediaOwner;mediaOwner=null;microphone?.close();microphone=null;badge.hidden=true;if(owner)mediaReply(owner,{type:'sharedesk-microphone-state',active:false,error});}
   badge.onclick=()=>stopMicrophone();
