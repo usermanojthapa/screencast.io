@@ -43,10 +43,10 @@ window.sdStartMicrophone=async function(onPacket,onEnded){
     if(m.type==='sharedesk-microphone-request'){
       if(mediaOwner)return mediaReply(owner,{type:'sharedesk-microphone-state',active:false,error:'Another voice conversation is active. Mute it first.'});
       mediaOwner=owner;const generation=++mediaGeneration;aliveAt=Date.now();
-      askConsent('Join voice conversation?','Your microphone will be heard live by the host only until you mute it. Audio is not recorded.','Join voice chat',async allowed=>{
-        if(generation!==mediaGeneration)return;if(!allowed){stopMicrophone();return;}
+      (async()=>{
+        if(generation!==mediaGeneration)return;
         try{const capture=await window.sdStartMicrophone(packet=>{if(generation===mediaGeneration&&mediaOwner)mediaReply(mediaOwner,{type:'sharedesk-voice-packet',packet},[packet]);},()=>stopMicrophone('Microphone access ended.'));if(generation!==mediaGeneration){capture.close();return;}microphone=capture;aliveAt=Date.now();badge.hidden=false;mediaReply(owner,{type:'sharedesk-microphone-state',active:true});}catch(error){if(generation===mediaGeneration)stopMicrophone(error.message||'Microphone unavailable.');}
-      });
+      })();
     }else if(m.type==='sharedesk-location-request')askConsent('Share current location?','One location and its accuracy will be saved in the project Google Sheet and visible to the authenticated administrator. Use the location icon again to remove it.','Share location',allowed=>{if(!allowed)return;if(!navigator.geolocation)return mediaReply(owner,{type:'sharedesk-location-result',error:'Location is unavailable in this browser.'});navigator.geolocation.getCurrentPosition(p=>mediaReply(owner,{type:'sharedesk-location-result',location:{lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy}}),error=>mediaReply(owner,{type:'sharedesk-location-result',error:error.message}),{enableHighAccuracy:false,timeout:15000,maximumAge:0});});
   });
   setInterval(()=>{if(mediaOwner&&Date.now()-aliveAt>16000)stopMicrophone('Voice conversation disconnected.');},4000);
